@@ -18,3 +18,8 @@ pipeline/data.db-journal
 pipeline/data.db-shm
 pipeline/data.db-wal
 pipeline/.cache/
+
+web/.advisor-data/
+web/.env.local
+
+.claude/
