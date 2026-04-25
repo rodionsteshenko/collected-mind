@@ -45,6 +45,8 @@ Domain = Literal[
     "software_engineering",
     "game_theory",
     "history",
+    "religion",
+    "aesthetics",
     "other",
 ]
 
