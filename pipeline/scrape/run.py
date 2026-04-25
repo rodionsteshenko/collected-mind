@@ -9,9 +9,35 @@ from tqdm import tqdm
 
 from pipeline.db import connect
 from pipeline.scrape.extract import extract_entries
-from pipeline.scrape.sources import SOURCES, Source
+from pipeline.scrape.sources import MANUAL_SOURCES, SOURCES, ManualSource, Source
 from pipeline.scrape.wiki import fetch_page_html, fetch_summaries
 from pipeline.util import slugify
+
+
+def _insert_manual_seeds(conn, source: ManualSource) -> int:
+    now = _dt.datetime.now(timezone.utc).isoformat()
+    inserted = 0
+    cur = conn.cursor()
+    for title in source.titles:
+        slug = slugify(title)
+        cur.execute(
+            """
+            INSERT OR IGNORE INTO concepts
+                (slug, title, source_list, wiki_url, wiki_fetched_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                slug,
+                title,
+                source.key,
+                f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}",
+                now,
+            ),
+        )
+        if cur.rowcount:
+            inserted += 1
+    conn.commit()
+    return inserted
 
 
 def _insert_seeds(conn, source: Source, titles: list[str]) -> int:
@@ -96,6 +122,10 @@ def main() -> int:
         titles = [t for t, _ in entries]
         inserted = _insert_seeds(conn, src, titles)
         print(f"  {src.key:<24s} {len(titles):>5d} found   {inserted:>5d} new")
+        total_seeds += inserted
+    for msrc in MANUAL_SOURCES:
+        inserted = _insert_manual_seeds(conn, msrc)
+        print(f"  {msrc.key:<24s} {len(msrc.titles):>5d} curated  {inserted:>5d} new")
         total_seeds += inserted
     print(f"total new seeds: {total_seeds}")
 

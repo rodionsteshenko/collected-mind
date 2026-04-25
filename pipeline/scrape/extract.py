@@ -95,12 +95,52 @@ def _heading_info(node: Tag) -> tuple[int, str] | None:
     return level, text
 
 
+_NON_CONTENT_TABLE_CLASSES = frozenset(
+    {"ambox", "navbox", "infobox", "sidebar", "metadata", "plainlinks", "hatnote"}
+)
+
+
+def _is_content_table(t: Tag) -> bool:
+    classes = set(t.get("class") or [])
+    if classes & _NON_CONTENT_TABLE_CLASSES:
+        return False
+    return "wikitable" in classes
+
+
+def _extract_table_rows(table: Tag, accept: set[str], collected: list[tuple[str, str]]) -> None:
+    """For a wikitable, take the first content link in each non-header row."""
+    for tr in table.find_all("tr"):
+        if tr.find("th") and not tr.find("td"):
+            continue  # pure header row
+        first_cell = tr.find(["td", "th"])
+        if not first_cell:
+            continue
+        a = first_cell.find("a", href=True)
+        if not a or not isinstance(a, Tag):
+            continue
+        cls = a.get("class") or []
+        if any(c in ("external", "mw-cite-backlink") for c in cls):
+            continue
+        title = _href_to_title(a["href"])
+        if not title or _is_bad_title(title):
+            continue
+        if title in accept:
+            continue
+        accept.add(title)
+        collected.append((title, a.get_text(strip=True) or title))
+
+
 def _extract_li_links(container: Tag, accept: set[str], collected: list[tuple[str, str]]) -> None:
-    # Skip list items inside tables/navboxes/infoboxes/thumbnails
-    for bad in container.find_all(
-        ["table"]
-        + []  # placeholder for readability
-    ):
+    # If the container itself is a content table, extract from it directly.
+    if container.name == "table" and _is_content_table(container):
+        _extract_table_rows(container, accept, collected)
+        return
+    # Content-bearing wikitables first (before stripping tables for li-scan)
+    for t in container.find_all("table"):
+        if _is_content_table(t):
+            _extract_table_rows(t, accept, collected)
+    # Now strip tables (content and non-content alike) so li-scan doesn't double-count
+    for bad in container.find_all(["table"]):
         bad.decompose()
     for el in container.find_all(class_=["navbox", "infobox", "thumb", "sidebar", "hatnote", "reflist"]):
         el.decompose()
@@ -156,7 +196,7 @@ def extract_entries(
         if current_h2 in excluded:
             continue
         # Only scan list-bearing containers
-        if node.name not in ("ul", "ol", "div", "dl", "section", "p"):
+        if node.name not in ("ul", "ol", "div", "dl", "section", "p", "table"):
             continue
         _extract_li_links(node, seen, out)
 

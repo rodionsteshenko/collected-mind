@@ -18,6 +18,11 @@ Form = Literal[
     "misconception",
     "law",
     "hypothesis",
+    "device",
+    "archetype",
+    "anti_pattern",
+    "game",
+    "defense_mechanism",
 ]
 
 Domain = Literal[
@@ -35,6 +40,11 @@ Domain = Literal[
     "decision_theory",
     "perception",
     "ethics",
+    "narrative",
+    "rhetoric",
+    "software_engineering",
+    "game_theory",
+    "history",
     "other",
 ]
 

@@ -66,6 +66,101 @@ SOURCES: list[Source] = [
         name="Named effects",
         default_form="effect",
     ),
+    Source(
+        page="List of eponymous laws",
+        key="eponymous_laws",
+        name="Eponymous laws",
+        default_form="law",
+    ),
+    Source(
+        page="List of narrative techniques",
+        key="narrative_techniques",
+        name="Narrative techniques",
+        default_form="device",
+    ),
+    Source(
+        page="List of stock characters",
+        key="stock_characters",
+        name="Stock characters",
+        default_form="archetype",
+    ),
+    Source(
+        page="List of software anti-patterns",
+        key="anti_patterns",
+        name="Software anti-patterns",
+        default_form="anti_pattern",
+    ),
+    Source(
+        page="List of games in game theory",
+        key="game_theory_games",
+        name="Game theory games",
+        default_form="game",
+    ),
+    Source(
+        page="Glossary of rhetorical terms",
+        key="rhetorical_terms",
+        name="Rhetorical terms",
+        default_form="device",
+    ),
+]
+
+
+@dataclass
+class ManualSource:
+    """A curated list of Wikipedia article titles, used when no list page works."""
+
+    key: str
+    name: str
+    default_form: str
+    titles: tuple[str, ...]
+
+
+MANUAL_SOURCES: list[ManualSource] = [
+    ManualSource(
+        key="defense_mechanisms",
+        name="Defense mechanisms",
+        default_form="defense_mechanism",
+        titles=(
+            "Acting out",
+            "Altruism",
+            "Anticipation (psychology)",
+            "Compartmentalization (psychology)",
+            "Compensation (psychology)",
+            "Conversion disorder",
+            "Denial",
+            "Displacement (psychology)",
+            "Dissociation (psychology)",
+            "Fantasy (psychology)",
+            "Idealization and devaluation",
+            "Identification (psychology)",
+            "Intellectualization",
+            "Introjection",
+            "Isolation (psychology)",
+            "Passive-aggressive behavior",
+            "Psychological projection",
+            "Projective identification",
+            "Rationalization (psychology)",
+            "Reaction formation",
+            "Regression (psychology)",
+            "Repression (psychology)",
+            "Splitting (psychology)",
+            "Sublimation (psychology)",
+            "Thought suppression",
+            "Undoing (psychology)",
+            "Transference",
+            "Countertransference",
+            "Triangulation (psychology)",
+            "DARVO",
+            "Gaslighting",
+            "Stonewalling",
+            "Codependency",
+            "Enmeshment",
+            "Parentification",
+            "Emotional blackmail",
+            "Love bombing",
+            "Hoovering (abuse)",
+        ),
+    ),
 ]
 # Dropped (too meta / too noisy for seed scrape):
 #   - "List of common misconceptions" is a meta page that only links to sub-lists
