@@ -3,7 +3,7 @@ import path from "node:path";
 
 import MiniSearch from "minisearch";
 
-import type { Concept } from "../types";
+import type { Concept, EdgeMap } from "../types";
 
 type EmbeddingsMeta = { ids: number[]; dim: number; model: string };
 
@@ -14,16 +14,19 @@ class Corpus {
   embeddings!: Float32Array;
   embIds: number[] = [];
   embDim = 0;
+  embIndexById = new Map<number, number>();
   search!: MiniSearch<Concept>;
+  edges: EdgeMap = {};
   private loaded = false;
 
   async load() {
     if (this.loaded) return;
     const dataDir = path.join(process.cwd(), "public", "data");
-    const [cJson, mJson, embBuf] = await Promise.all([
+    const [cJson, mJson, embBuf, eJson] = await Promise.all([
       fs.readFile(path.join(dataDir, "concepts.json"), "utf8"),
       fs.readFile(path.join(dataDir, "embeddings_meta.json"), "utf8"),
       fs.readFile(path.join(dataDir, "embeddings.bin")),
+      fs.readFile(path.join(dataDir, "edges.json"), "utf8"),
     ]);
 
     this.concepts = JSON.parse(cJson) as Concept[];
@@ -40,6 +43,9 @@ class Corpus {
       embBuf.byteOffset,
       embBuf.byteLength / 4,
     );
+    for (let i = 0; i < this.embIds.length; i++) this.embIndexById.set(this.embIds[i], i);
+
+    this.edges = JSON.parse(eJson) as EdgeMap;
 
     this.search = new MiniSearch<Concept>({
       idField: "id",
@@ -49,6 +55,12 @@ class Corpus {
     });
     this.search.addAll(this.concepts);
     this.loaded = true;
+  }
+
+  embeddingForId(id: number): Float32Array | null {
+    const i = this.embIndexById.get(id);
+    if (i == null) return null;
+    return this.embeddings.subarray(i * this.embDim, (i + 1) * this.embDim);
   }
 
   cosineTopK(query: Float32Array, k: number): { id: number; score: number }[] {
