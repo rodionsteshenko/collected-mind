@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/Badge";
+import { EgoGraph } from "@/components/EgoGraph";
 import { SignalButtons } from "@/components/SignalButtons";
 import { loadConcepts, loadConceptsById, loadEdges } from "@/lib/data";
+import { buildEgoGraph } from "@/lib/egoGraph";
 import { label } from "@/lib/labels";
 import type { Concept, EdgeKind } from "@/lib/types";
 
@@ -72,6 +74,8 @@ export default async function ConceptPage({ params }: PageProps) {
   }
   for (const c of prereqs) seenRelatedIds.add(c.id);
 
+  const ego = buildEgoGraph(concept, edges, byId);
+
   return (
     <article className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
@@ -109,6 +113,15 @@ export default async function ConceptPage({ params }: PageProps) {
           {concept.example}
         </p>
       </section>
+
+      {ego.nodes.length > 1 ? (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
+            Neighborhood
+          </h2>
+          <EgoGraph nodes={ego.nodes} links={ego.links} />
+        </section>
+      ) : null}
 
       {prereqs.length ? (
         <Related
