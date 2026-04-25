@@ -44,3 +44,16 @@ export type EmbeddingsMeta = {
 };
 
 export type Signal = "knew" | "didnt" | "mind_blown";
+
+export type Cluster = {
+  id: number;
+  size: number;
+  representatives: number[];
+  topTerms: string[];
+};
+
+export type Clusters = {
+  k: number;
+  clusters: Cluster[];
+  assignments: Record<string, number>;
+};

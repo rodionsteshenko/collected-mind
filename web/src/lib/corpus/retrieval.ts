@@ -1,4 +1,15 @@
 import { corpus } from "@/lib/advisor/corpus";
+import type { EdgeKind } from "@/lib/types";
+
+export const ALL_EDGE_KINDS: EdgeKind[] = [
+  "semantic_near",
+  "semantic_dedup",
+  "prerequisite_of",
+  "specializes",
+  "contrasts_with",
+  "example_of",
+  "same_phenomenon_different_frame",
+];
 
 function dot(a: Float32Array, b: Float32Array): number {
   let s = 0;
@@ -155,4 +166,243 @@ export function analogy(
   }
   out.sort((a, b) => b.score - a.score);
   return out.slice(0, opts.k);
+}
+
+/**
+ * Lazily-built undirected weighted adjacency from corpus.edges. The export
+ * step writes the graph keyed by src_id with kind → [{id, w}]; we union
+ * incoming + outgoing per node, keeping the max weight when an edge appears
+ * in both directions or under multiple kinds.
+ */
+type AdjEntry = { kinds: Set<EdgeKind>; w: number };
+type Adj = Map<number, Map<number, AdjEntry>>;
+let adjCache: Adj | null = null;
+let adjCacheKey: object | null = null;
+
+function buildAdj(kinds: Set<EdgeKind>): Adj {
+  const adj: Adj = new Map();
+  const upsert = (a: number, b: number, kind: EdgeKind, w: number) => {
+    let m = adj.get(a);
+    if (!m) {
+      m = new Map();
+      adj.set(a, m);
+    }
+    const e = m.get(b);
+    if (e) {
+      e.kinds.add(kind);
+      if (w > e.w) e.w = w;
+    } else {
+      m.set(b, { kinds: new Set([kind]), w });
+    }
+  };
+  for (const [srcStr, byKind] of Object.entries(corpus.edges)) {
+    const src = Number(srcStr);
+    for (const [kind, list] of Object.entries(byKind)) {
+      if (!kinds.has(kind as EdgeKind)) continue;
+      for (const e of list ?? []) {
+        upsert(src, e.id, kind as EdgeKind, e.w);
+        upsert(e.id, src, kind as EdgeKind, e.w);
+      }
+    }
+  }
+  return adj;
+}
+
+function getAdj(kinds: EdgeKind[]): Adj {
+  const sorted = [...kinds].sort().join(",");
+  const cacheKey = { sorted, edges: corpus.edges };
+  if (adjCache && adjCacheKey && (adjCacheKey as { sorted: string }).sorted === sorted) {
+    return adjCache;
+  }
+  adjCache = buildAdj(new Set(kinds));
+  adjCacheKey = cacheKey;
+  return adjCache;
+}
+
+/**
+ * Shortest weighted path from `from` to `to` over the edges graph.
+ *
+ * Each edge's traversal cost is 1 − w (higher-weight edges are cheaper),
+ * so the path prefers strong connections. Restrict edge kinds via `kinds`.
+ *
+ * Returns the ordered chain of concept ids (inclusive), or null when no path
+ * exists within `maxHops`. Each step also reports the weight and kinds of the
+ * edge used.
+ */
+export function shortestPath(
+  fromId: number,
+  toId: number,
+  opts: { kinds?: EdgeKind[]; maxHops?: number } = {},
+): { ids: number[]; steps: { from: number; to: number; w: number; kinds: EdgeKind[] }[]; cost: number } | null {
+  if (fromId === toId) return { ids: [fromId], steps: [], cost: 0 };
+  const kinds = opts.kinds ?? ALL_EDGE_KINDS;
+  const maxHops = opts.maxHops ?? 6;
+  const adj = getAdj(kinds);
+  if (!adj.has(fromId) || !adj.has(toId)) return null;
+
+  // Dijkstra with hop cap. Distances small, so a linear-scan frontier is fine.
+  const dist = new Map<number, number>([[fromId, 0]]);
+  const hops = new Map<number, number>([[fromId, 0]]);
+  const prev = new Map<number, { id: number; w: number; kinds: EdgeKind[] }>();
+  const visited = new Set<number>();
+  const frontier = new Set<number>([fromId]);
+
+  while (frontier.size > 0) {
+    let u = -1;
+    let ud = Infinity;
+    for (const n of frontier) {
+      const d = dist.get(n)!;
+      if (d < ud) {
+        ud = d;
+        u = n;
+      }
+    }
+    if (u < 0) break;
+    frontier.delete(u);
+    visited.add(u);
+    if (u === toId) break;
+    const uh = hops.get(u)!;
+    if (uh >= maxHops) continue;
+    const neigh = adj.get(u);
+    if (!neigh) continue;
+    for (const [v, e] of neigh) {
+      if (visited.has(v)) continue;
+      const cost = ud + Math.max(0.001, 1 - e.w);
+      if (cost < (dist.get(v) ?? Infinity)) {
+        dist.set(v, cost);
+        hops.set(v, uh + 1);
+        prev.set(v, { id: u, w: e.w, kinds: [...e.kinds] });
+        frontier.add(v);
+      }
+    }
+  }
+
+  if (!dist.has(toId)) return null;
+  const ids: number[] = [];
+  const steps: { from: number; to: number; w: number; kinds: EdgeKind[] }[] = [];
+  let cur = toId;
+  while (cur !== fromId) {
+    const p = prev.get(cur);
+    if (!p) return null;
+    ids.push(cur);
+    steps.push({ from: p.id, to: cur, w: p.w, kinds: p.kinds });
+    cur = p.id;
+  }
+  ids.push(fromId);
+  ids.reverse();
+  steps.reverse();
+  return { ids, steps, cost: dist.get(toId)! };
+}
+
+/**
+ * Weighted random sample from the corpus, biased toward surprise/obscurity.
+ *
+ * weight(c) = (1 + surprise)^surpriseTemp · (1 + obscurity)^obscurityTemp
+ *
+ * Optionally anchored: when `anchorId` is set, restrict candidates to the
+ * cosine top-`pool` neighbors of the anchor first, then weighted-sample.
+ */
+export function weightedSample(
+  ids: number[],
+  k: number,
+  opts: { surpriseTemp?: number; obscurityTemp?: number } = {},
+): number[] {
+  const surpriseTemp = opts.surpriseTemp ?? 1;
+  const obscurityTemp = opts.obscurityTemp ?? 0.5;
+  const pool: { id: number; w: number }[] = [];
+  for (const id of ids) {
+    const c = corpus.byId.get(id);
+    if (!c) continue;
+    const w =
+      Math.pow(1 + (c.surprise ?? 0), surpriseTemp) *
+      Math.pow(1 + (c.obscurity ?? 0), obscurityTemp);
+    if (w > 0) pool.push({ id, w });
+  }
+  // Sample k without replacement via the Efraimidis–Spirakis A-Res trick:
+  // key = u^(1/w), keep the top-k keys.
+  const keyed = pool.map((p) => ({ id: p.id, key: Math.pow(Math.random(), 1 / p.w) }));
+  keyed.sort((a, b) => b.key - a.key);
+  return keyed.slice(0, k).map((x) => x.id);
+}
+
+/**
+ * "Explain the connection" between two concepts: shared facets, direct
+ * edges (in either direction), shared neighbors, and cosine similarity.
+ *
+ * Pure metadata — agents render the prose. Skips any LLM call.
+ */
+export function explain(
+  idA: number,
+  idB: number,
+): {
+  cosine: number | null;
+  directEdges: { kind: EdgeKind; w: number; direction: "a_to_b" | "b_to_a" }[];
+  sharedDomain: string[];
+  sharedAffect: string[];
+  sameForm: boolean;
+  sameSource: boolean;
+  sharedNeighbors: { id: number; via: EdgeKind[] }[];
+} | null {
+  const a = corpus.byId.get(idA);
+  const b = corpus.byId.get(idB);
+  if (!a || !b) return null;
+
+  const ea = corpus.embeddingForId(idA);
+  const eb = corpus.embeddingForId(idB);
+  const cosine = ea && eb ? dot(ea, eb) : null;
+
+  const directEdges: { kind: EdgeKind; w: number; direction: "a_to_b" | "b_to_a" }[] = [];
+  const fromA = corpus.edges[String(idA)] ?? {};
+  for (const [kind, list] of Object.entries(fromA)) {
+    for (const e of list ?? []) {
+      if (e.id === idB) directEdges.push({ kind: kind as EdgeKind, w: e.w, direction: "a_to_b" });
+    }
+  }
+  const fromB = corpus.edges[String(idB)] ?? {};
+  for (const [kind, list] of Object.entries(fromB)) {
+    for (const e of list ?? []) {
+      if (e.id === idA) directEdges.push({ kind: kind as EdgeKind, w: e.w, direction: "b_to_a" });
+    }
+  }
+
+  const sharedDomain = a.domain.filter((d) => b.domain.includes(d));
+  const sharedAffect = a.affect.filter((d) => b.affect.includes(d));
+  const sameForm = a.form === b.form;
+  const sameSource = a.source === b.source;
+
+  // Shared neighbors across all edge kinds. For each candidate, record which
+  // edge kind connected it to A and B (taking the union of kinds for each side).
+  const aNeighbors = new Map<number, Set<EdgeKind>>();
+  for (const [kind, list] of Object.entries(fromA)) {
+    for (const e of list ?? []) {
+      if (e.id === idB) continue;
+      let s = aNeighbors.get(e.id);
+      if (!s) {
+        s = new Set();
+        aNeighbors.set(e.id, s);
+      }
+      s.add(kind as EdgeKind);
+    }
+  }
+  const sharedNeighbors: { id: number; via: EdgeKind[] }[] = [];
+  for (const [kind, list] of Object.entries(fromB)) {
+    for (const e of list ?? []) {
+      if (e.id === idA) continue;
+      const aKinds = aNeighbors.get(e.id);
+      if (!aKinds) continue;
+      const via = new Set<EdgeKind>(aKinds);
+      via.add(kind as EdgeKind);
+      sharedNeighbors.push({ id: e.id, via: [...via] });
+    }
+  }
+
+  return {
+    cosine,
+    directEdges,
+    sharedDomain,
+    sharedAffect,
+    sameForm,
+    sameSource,
+    sharedNeighbors,
+  };
 }

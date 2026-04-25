@@ -1,4 +1,4 @@
-.PHONY: install scrape enrich embed edges export web dev clean
+.PHONY: install scrape enrich embed edges cluster export web dev clean
 
 PY := .venv/bin/python
 
@@ -19,6 +19,9 @@ embed:
 
 edges:
 	$(PY) -m pipeline.edges.run
+
+cluster:
+	$(PY) -m pipeline.cluster.run
 
 export:
 	$(PY) -m pipeline.export

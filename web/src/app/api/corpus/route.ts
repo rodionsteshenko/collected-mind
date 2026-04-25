@@ -34,6 +34,17 @@ export async function GET(req: Request) {
         "concepts near the centroid of multiple seeds",
       "GET /api/corpus/analogy?slug=&domain=&form=&k=":
         "'like X but in domain Y' — same concept, different territory",
+      "GET /api/corpus/path?from=&to=&maxHops=&kinds=":
+        "shortest weighted path through the edge graph (high-weight edges preferred)",
+      "GET /api/corpus/random?k=&surpriseTemp=&obscurityTemp=&anchor=&anchorPool=&form=&domain=&affect=":
+        "weighted serendipitous sample, biased toward surprise × obscurity, optional seed anchor",
+      "GET /api/corpus/explain?from=&to=":
+        "structured connection metadata between two concepts (cosine, edges, shared facets/neighbors)",
+      "GET /api/corpus/clusters": "list all precomputed clusters with sizes, top terms, representatives",
+      "GET /api/corpus/clusters/[id]?sort=&k=&offset=&form=&domain=&affect=":
+        "members of a single cluster with optional filters",
+      "GET /api/corpus/concepts/[slug]/cluster":
+        "which cluster a given concept belongs to",
       "POST /api/mcp": "Streamable-HTTP MCP server exposing all retrieval tools",
     },
     example: `${base}/search?q=blind+spot&k=5&form=bias`,

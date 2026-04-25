@@ -3,7 +3,7 @@ import path from "node:path";
 
 import MiniSearch from "minisearch";
 
-import type { Concept, EdgeMap } from "../types";
+import type { Cluster, Clusters, Concept, EdgeMap } from "../types";
 
 type EmbeddingsMeta = { ids: number[]; dim: number; model: string };
 
@@ -17,16 +17,21 @@ class Corpus {
   embIndexById = new Map<number, number>();
   search!: MiniSearch<Concept>;
   edges: EdgeMap = {};
+  clusters: Cluster[] = [];
+  clusterById = new Map<number, Cluster>();
+  clusterOfConcept = new Map<number, number>();
   private loaded = false;
 
   async load() {
     if (this.loaded) return;
     const dataDir = path.join(process.cwd(), "public", "data");
-    const [cJson, mJson, embBuf, eJson] = await Promise.all([
+    const [cJson, mJson, embBuf, eJson, clJson] = await Promise.all([
       fs.readFile(path.join(dataDir, "concepts.json"), "utf8"),
       fs.readFile(path.join(dataDir, "embeddings_meta.json"), "utf8"),
       fs.readFile(path.join(dataDir, "embeddings.bin")),
       fs.readFile(path.join(dataDir, "edges.json"), "utf8"),
+      // Clusters are optional — pre-cluster pipeline runs won't have written this.
+      fs.readFile(path.join(dataDir, "clusters.json"), "utf8").catch(() => ""),
     ]);
 
     this.concepts = JSON.parse(cJson) as Concept[];
@@ -46,6 +51,15 @@ class Corpus {
     for (let i = 0; i < this.embIds.length; i++) this.embIndexById.set(this.embIds[i], i);
 
     this.edges = JSON.parse(eJson) as EdgeMap;
+
+    if (clJson) {
+      const cl = JSON.parse(clJson) as Clusters;
+      this.clusters = cl.clusters;
+      for (const c of cl.clusters) this.clusterById.set(c.id, c);
+      for (const [cid, label] of Object.entries(cl.assignments)) {
+        this.clusterOfConcept.set(Number(cid), label);
+      }
+    }
 
     this.search = new MiniSearch<Concept>({
       idField: "id",

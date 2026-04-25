@@ -5,7 +5,17 @@ import { z } from "zod";
 import { corpus } from "@/lib/advisor/corpus";
 import { embedQuery } from "@/lib/advisor/embed";
 import { applyFilters, slim, sortBy, type Filters, type Sort } from "@/lib/corpus/api";
-import { analogy, bridge, mmr, triangulate } from "@/lib/corpus/retrieval";
+import {
+  ALL_EDGE_KINDS,
+  analogy,
+  bridge,
+  explain,
+  mmr,
+  shortestPath,
+  triangulate,
+  weightedSample,
+} from "@/lib/corpus/retrieval";
+import type { EdgeKind } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -260,6 +270,225 @@ function buildServer(): McpServer {
         })
         .filter(Boolean);
       return asText(out);
+    },
+  );
+
+  server.registerTool(
+    "path",
+    {
+      description:
+        "Shortest weighted graph path between two concepts. Higher-weight edges are preferred. Restrict to specific edge kinds with `kinds` (default: all).",
+      inputSchema: {
+        from: z.string(),
+        to: z.string(),
+        maxHops: z.number().int().min(1).max(12).default(6),
+        kinds: z.array(z.enum(ALL_EDGE_KINDS as [EdgeKind, ...EdgeKind[]])).optional(),
+      },
+    },
+    async ({ from, to, maxHops, kinds }) => {
+      const a = corpus.bySlug.get(from);
+      const b = corpus.bySlug.get(to);
+      if (!a || !b) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "not found", from, to }) }],
+          isError: true,
+        };
+      }
+      const result = shortestPath(a.id, b.id, { kinds, maxHops });
+      if (!result) return asText({ found: false, from, to });
+      const path = result.ids
+        .map((id) => corpus.byId.get(id))
+        .filter((c): c is NonNullable<typeof c> => c != null)
+        .map(slim);
+      return asText({
+        found: true,
+        hops: result.steps.length,
+        cost: Number(result.cost.toFixed(4)),
+        path,
+        steps: result.steps.map((s) => ({
+          from: corpus.byId.get(s.from)?.slug,
+          to: corpus.byId.get(s.to)?.slug,
+          w: Number(s.w.toFixed(4)),
+          kinds: s.kinds,
+        })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "random",
+    {
+      description:
+        "Weighted random sample biased toward surprise × obscurity. Set `anchor` to draw near a seed concept's neighborhood. Good for serendipitous discovery.",
+      inputSchema: {
+        k: z.number().int().min(1).max(100).default(10),
+        surpriseTemp: z.number().default(1),
+        obscurityTemp: z.number().default(0.5),
+        anchor: z.string().optional(),
+        anchorPool: z.number().int().min(10).max(1000).default(200),
+        form: z.string().optional(),
+        domain: z.string().optional(),
+        affect: z.string().optional(),
+      },
+    },
+    async ({ k, surpriseTemp, obscurityTemp, anchor, anchorPool, form, domain, affect }) => {
+      const filters: Filters = { form, domain, affect };
+      let pool = applyFilters(corpus.concepts, filters).map((c) => c.id);
+      if (anchor) {
+        const seed = corpus.bySlug.get(anchor);
+        if (!seed) {
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify({ error: "anchor not found", anchor }) }],
+            isError: true,
+          };
+        }
+        const seedEmb = corpus.embeddingForId(seed.id);
+        if (seedEmb) {
+          const top = corpus.cosineTopK(seedEmb, anchorPool);
+          const allowed = new Set(pool);
+          pool = top.map((h) => h.id).filter((id) => id !== seed.id && allowed.has(id));
+        }
+      }
+      const picked = weightedSample(pool, k, { surpriseTemp, obscurityTemp });
+      const out = picked
+        .map((id) => corpus.byId.get(id))
+        .filter((c): c is NonNullable<typeof c> => c != null)
+        .map(slim);
+      return asText(out);
+    },
+  );
+
+  server.registerTool(
+    "explain",
+    {
+      description:
+        "Structured explanation of how two concepts connect: cosine, direct edges, shared facets, shared neighbors. Pure metadata — caller writes the prose.",
+      inputSchema: { from: z.string(), to: z.string() },
+    },
+    async ({ from, to }) => {
+      const a = corpus.bySlug.get(from);
+      const b = corpus.bySlug.get(to);
+      if (!a || !b) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "not found", from, to }) }],
+          isError: true,
+        };
+      }
+      const exp = explain(a.id, b.id);
+      if (!exp) return { content: [{ type: "text" as const, text: JSON.stringify({ error: "explain failed" }) }], isError: true };
+      const sharedNeighbors = exp.sharedNeighbors
+        .map((n) => {
+          const c = corpus.byId.get(n.id);
+          if (!c) return null;
+          return { ...slim(c), via: n.via };
+        })
+        .filter((r): r is NonNullable<typeof r> => r != null)
+        .slice(0, 25);
+      return asText({
+        from: { slug: a.slug, title: a.title, form: a.form, domain: a.domain, affect: a.affect },
+        to: { slug: b.slug, title: b.title, form: b.form, domain: b.domain, affect: b.affect },
+        cosine: exp.cosine == null ? null : Number(exp.cosine.toFixed(4)),
+        directEdges: exp.directEdges.map((e) => ({ ...e, w: Number(e.w.toFixed(4)) })),
+        sameForm: exp.sameForm,
+        sameSource: exp.sameSource,
+        sharedDomain: exp.sharedDomain,
+        sharedAffect: exp.sharedAffect,
+        sharedNeighbors,
+      });
+    },
+  );
+
+  server.registerTool(
+    "list_clusters",
+    {
+      description:
+        "List all precomputed clusters with size, distinctive top terms, and representative concepts. Sorted by size descending.",
+      inputSchema: {},
+    },
+    async () => {
+      const clusters = corpus.clusters.map((c) => ({
+        id: c.id,
+        size: c.size,
+        topTerms: c.topTerms,
+        representatives: c.representatives
+          .map((id) => corpus.byId.get(id))
+          .filter((x): x is NonNullable<typeof x> => x != null)
+          .map(slim),
+      }));
+      clusters.sort((a, b) => b.size - a.size);
+      return asText({ total: clusters.length, clusters });
+    },
+  );
+
+  server.registerTool(
+    "cluster_members",
+    {
+      description: "Members of a single cluster with optional facet filters and pagination.",
+      inputSchema: {
+        id: z.number().int().min(0),
+        sort: z.enum(["surprise", "obscurity", "title"]).default("surprise"),
+        k: z.number().int().min(1).max(500).default(50),
+        offset: z.number().int().min(0).default(0),
+        form: z.string().optional(),
+        domain: z.string().optional(),
+        affect: z.string().optional(),
+      },
+    },
+    async ({ id, sort, k, offset, form, domain, affect }) => {
+      const cluster = corpus.clusterById.get(id);
+      if (!cluster) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "cluster not found", id }) }],
+          isError: true,
+        };
+      }
+      const memberIds: number[] = [];
+      for (const [cid, label] of corpus.clusterOfConcept) {
+        if (label === id) memberIds.push(cid);
+      }
+      const members = memberIds
+        .map((cid) => corpus.byId.get(cid))
+        .filter((c): c is NonNullable<typeof c> => c != null);
+      const filtered = applyFilters(members, { form, domain, affect } as Filters);
+      const sorted = sortBy(filtered, sort as Sort);
+      const page = sorted.slice(offset, offset + k);
+      return asText({
+        id,
+        size: cluster.size,
+        topTerms: cluster.topTerms,
+        total: filtered.length,
+        count: page.length,
+        offset,
+        members: page.map(slim),
+      });
+    },
+  );
+
+  server.registerTool(
+    "concept_cluster",
+    {
+      description: "Which cluster does a given concept belong to?",
+      inputSchema: { slug: z.string() },
+    },
+    async ({ slug }) => {
+      const c = corpus.bySlug.get(slug);
+      if (!c) return { content: [{ type: "text" as const, text: JSON.stringify({ error: "not found", slug }) }], isError: true };
+      const label = corpus.clusterOfConcept.get(c.id);
+      if (label == null) return asText({ slug, cluster: null });
+      const cluster = corpus.clusterById.get(label);
+      if (!cluster) return asText({ slug, cluster: null });
+      return asText({
+        slug,
+        cluster: {
+          id: cluster.id,
+          size: cluster.size,
+          topTerms: cluster.topTerms,
+          representatives: cluster.representatives
+            .map((rid) => corpus.byId.get(rid))
+            .filter((x): x is NonNullable<typeof x> => x != null)
+            .map(slim),
+        },
+      });
     },
   );
 
