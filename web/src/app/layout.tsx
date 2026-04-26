@@ -42,6 +42,9 @@ export default function RootLayout({
               <Link href="/search/" className="hover:text-zinc-900 dark:hover:text-white">
                 Search
               </Link>
+              <Link href="/favorites/" className="hover:text-zinc-900 dark:hover:text-white">
+                Favorites
+              </Link>
               <Link href="/history/" className="hover:text-zinc-900 dark:hover:text-white">
                 History
               </Link>

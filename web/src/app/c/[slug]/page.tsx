@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/Badge";
 import { EgoGraph } from "@/components/EgoGraph";
+import { Reactions } from "@/components/Reactions";
 import { SignalButtons } from "@/components/SignalButtons";
 import { loadConcepts, loadConceptsById, loadEdges } from "@/lib/data";
 import { buildEgoGraph } from "@/lib/egoGraph";
@@ -98,7 +99,10 @@ export default async function ConceptPage({ params }: PageProps) {
         <p className="max-w-3xl text-lg text-zinc-700 dark:text-zinc-300">{concept.oneLiner}</p>
       </header>
 
-      <SignalButtons slug={concept.slug} />
+      <div className="flex flex-col gap-3">
+        <Reactions slug={concept.slug} />
+        <SignalButtons slug={concept.slug} />
+      </div>
 
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">The "aha"</h2>

@@ -5,6 +5,8 @@ import { z } from "zod";
 import { corpus } from "@/lib/advisor/corpus";
 import { embedQuery } from "@/lib/advisor/embed";
 import { applyFilters, slim, sortBy, type Filters, type Sort } from "@/lib/corpus/api";
+import { addDismissed, listDismissed, removeDismissed } from "@/lib/dismissed/store";
+import { addFavorite, listFavorites, removeFavorite } from "@/lib/favorites/store";
 import {
   ALL_EDGE_KINDS,
   analogy,
@@ -508,6 +510,115 @@ function buildServer(): McpServer {
         };
       const quotes = corpus.quotes[String(c.id)] ?? [];
       return asText({ slug, title: c.title, count: quotes.length, quotes });
+    },
+  );
+
+  server.registerTool(
+    "list_favorites",
+    {
+      description:
+        "List the user's favorited concepts (newest first), plus a 'similar' set computed from the centroid of their embeddings.",
+      inputSchema: {
+        k: z.number().int().min(0).max(50).default(12),
+      },
+    },
+    async ({ k }) => {
+      const favs = await listFavorites();
+      const concepts = favs
+        .map((f) => corpus.bySlug.get(f.slug))
+        .filter((c): c is NonNullable<typeof c> => c != null);
+      let similar: ReturnType<typeof slim>[] = [];
+      if (concepts.length > 0 && k > 0) {
+        const ids = concepts.map((c) => c.id);
+        const ranked = triangulate(ids, k);
+        similar = ranked
+          .map((r) => corpus.byId.get(r.id))
+          .filter((c): c is NonNullable<typeof c> => c != null)
+          .map(slim);
+      }
+      return asText({
+        count: favs.length,
+        favorites: concepts.map((c, i) => ({ ...slim(c), favoritedAt: favs[i].createdAt })),
+        similar,
+      });
+    },
+  );
+
+  server.registerTool(
+    "add_favorite",
+    {
+      description: "Mark a concept as favorited. Idempotent — re-adding returns the existing entry.",
+      inputSchema: { slug: z.string() },
+    },
+    async ({ slug }) => {
+      if (!corpus.bySlug.has(slug)) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "not found", slug }) }],
+          isError: true,
+        };
+      }
+      const fav = await addFavorite(slug);
+      return asText({ ok: true, favorite: fav });
+    },
+  );
+
+  server.registerTool(
+    "remove_favorite",
+    {
+      description: "Remove a favorited concept. Returns { removed: true } if it was present.",
+      inputSchema: { slug: z.string() },
+    },
+    async ({ slug }) => {
+      const removed = await removeFavorite(slug);
+      return asText({ ok: true, removed });
+    },
+  );
+
+  server.registerTool(
+    "list_dismissed",
+    {
+      description: "List concepts the user has marked as 'not important' (newest first).",
+      inputSchema: {},
+    },
+    async () => {
+      const items = await listDismissed();
+      const out = items
+        .map((d, i) => {
+          const c = corpus.bySlug.get(d.slug);
+          return c ? { ...slim(c), dismissedAt: items[i].createdAt } : null;
+        })
+        .filter((c): c is NonNullable<typeof c> => c != null);
+      return asText({ count: items.length, dismissed: out });
+    },
+  );
+
+  server.registerTool(
+    "add_dismissed",
+    {
+      description: "Mark a concept as 'not important'. Idempotent.",
+      inputSchema: { slug: z.string() },
+    },
+    async ({ slug }) => {
+      if (!corpus.bySlug.has(slug)) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "not found", slug }) }],
+          isError: true,
+        };
+      }
+      const d = await addDismissed(slug);
+      return asText({ ok: true, dismissed: d });
+    },
+  );
+
+  server.registerTool(
+    "remove_dismissed",
+    {
+      description: "Un-dismiss a concept.",
+      inputSchema: { slug: z.string() },
+    },
+    async ({ slug }) => {
+      const removed = await removeDismissed(slug);
+      return asText({ ok: true, removed });
     },
   );
 
