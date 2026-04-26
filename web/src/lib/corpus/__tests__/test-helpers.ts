@@ -1,5 +1,5 @@
 import { corpus } from "@/lib/advisor/corpus";
-import type { Cluster, Concept, EdgeKind, EdgeMap } from "@/lib/types";
+import type { Cluster, Concept, EdgeKind, EdgeMap, QuoteMap } from "@/lib/types";
 
 /** Build a Concept with sensible defaults; override only the fields a test cares about. */
 export function makeConcept(over: Partial<Concept> & { id: number; slug: string; title: string }): Concept {
@@ -34,6 +34,7 @@ export type SeedInput = {
   embeddings?: number[][];
   edges?: EdgeMap;
   clusters?: { k: number; clusters: Cluster[]; assignments: Record<string, number> };
+  quotes?: QuoteMap;
 };
 
 /**
@@ -83,6 +84,11 @@ export function seedCorpus(input: SeedInput): void {
     corpus.clusterById.clear();
     corpus.clusterOfConcept.clear();
   }
+
+  corpus.quotes = input.quotes ?? {};
+  // Mark as loaded so route handlers calling `await corpus.load()` short-circuit
+  // and don't try to read fixture files from disk.
+  corpus.loaded = true;
 }
 
 /**

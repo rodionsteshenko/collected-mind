@@ -57,3 +57,12 @@ export type Clusters = {
   clusters: Cluster[];
   assignments: Record<string, number>;
 };
+
+export type Quote = {
+  text: string;
+  attribution: string;
+  source: "wikiquote" | "llm_verified";
+  sourceUrl: string;
+};
+
+export type QuoteMap = Record<string, Quote[]>; // keyed by concept id (as string)

@@ -58,6 +58,20 @@ CREATE TABLE IF NOT EXISTS edges (
 CREATE INDEX IF NOT EXISTS ix_edges_src ON edges(src_id);
 CREATE INDEX IF NOT EXISTS ix_edges_dst ON edges(dst_id);
 
+CREATE TABLE IF NOT EXISTS quotes (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    concept_id  INTEGER NOT NULL REFERENCES concepts(id),
+    text        TEXT NOT NULL,
+    attribution TEXT,            -- "Author, Work (Year)" — free-form
+    source      TEXT NOT NULL,   -- 'wikiquote' | 'llm_verified'
+    source_url  TEXT,            -- e.g. the Wikiquote page we pulled it from
+    rank        INTEGER DEFAULT 0,  -- ordering within a concept
+    created_at  TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(concept_id, text)
+);
+
+CREATE INDEX IF NOT EXISTS ix_quotes_concept ON quotes(concept_id);
+
 -- Generic KV cache for LLM/API responses keyed by content hash.
 CREATE TABLE IF NOT EXISTS cache (
     key       TEXT PRIMARY KEY,

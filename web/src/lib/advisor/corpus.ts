@@ -3,7 +3,7 @@ import path from "node:path";
 
 import MiniSearch from "minisearch";
 
-import type { Cluster, Clusters, Concept, EdgeMap } from "../types";
+import type { Cluster, Clusters, Concept, EdgeMap, QuoteMap } from "../types";
 
 type EmbeddingsMeta = { ids: number[]; dim: number; model: string };
 
@@ -20,18 +20,21 @@ class Corpus {
   clusters: Cluster[] = [];
   clusterById = new Map<number, Cluster>();
   clusterOfConcept = new Map<number, number>();
-  private loaded = false;
+  quotes: QuoteMap = {};
+  loaded = false;
 
   async load() {
     if (this.loaded) return;
     const dataDir = path.join(process.cwd(), "public", "data");
-    const [cJson, mJson, embBuf, eJson, clJson] = await Promise.all([
+    const [cJson, mJson, embBuf, eJson, clJson, qJson] = await Promise.all([
       fs.readFile(path.join(dataDir, "concepts.json"), "utf8"),
       fs.readFile(path.join(dataDir, "embeddings_meta.json"), "utf8"),
       fs.readFile(path.join(dataDir, "embeddings.bin")),
       fs.readFile(path.join(dataDir, "edges.json"), "utf8"),
       // Clusters are optional — pre-cluster pipeline runs won't have written this.
       fs.readFile(path.join(dataDir, "clusters.json"), "utf8").catch(() => ""),
+      // Quotes are optional too.
+      fs.readFile(path.join(dataDir, "quotes.json"), "utf8").catch(() => ""),
     ]);
 
     this.concepts = JSON.parse(cJson) as Concept[];
@@ -59,6 +62,10 @@ class Corpus {
       for (const [cid, label] of Object.entries(cl.assignments)) {
         this.clusterOfConcept.set(Number(cid), label);
       }
+    }
+
+    if (qJson) {
+      this.quotes = JSON.parse(qJson) as QuoteMap;
     }
 
     this.search = new MiniSearch<Concept>({

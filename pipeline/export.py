@@ -129,6 +129,28 @@ def export() -> None:
         )
     )
 
+    # --- quotes.json: { "<conceptId>": [{text, attribution, source, sourceUrl}, ...] }
+    quote_rows = conn.execute(
+        """
+        SELECT q.concept_id, q.text, q.attribution, q.source, q.source_url, q.rank
+          FROM quotes q
+          JOIN concepts c ON c.id = q.concept_id
+         WHERE c.dropped = 0 AND c.enriched_at IS NOT NULL
+         ORDER BY q.concept_id, q.rank, q.id
+        """
+    ).fetchall()
+    quotes_by_id: dict[str, list[dict]] = defaultdict(list)
+    for q in quote_rows:
+        quotes_by_id[str(q["concept_id"])].append(
+            {
+                "text": q["text"],
+                "attribution": q["attribution"] or "",
+                "source": q["source"],
+                "sourceUrl": q["source_url"] or "",
+            }
+        )
+    (OUT_DIR / "quotes.json").write_text(json.dumps(quotes_by_id, separators=(",", ":"), ensure_ascii=False))
+
     # --- search.json: small per-concept docs for MiniSearch on the client
     search_docs = [
         {
@@ -145,7 +167,8 @@ def export() -> None:
     print(
         f"exported → {OUT_DIR}\n"
         f"  concepts: {len(concepts)}   embeddings: {len(emb_ids)}   "
-        f"edges: {sum(len(v) for d in out_edges.values() for v in d.values())}"
+        f"edges: {sum(len(v) for d in out_edges.values() for v in d.values())}   "
+        f"quotes: {sum(len(v) for v in quotes_by_id.values())}"
     )
     conn.close()
 

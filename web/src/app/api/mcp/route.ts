@@ -493,6 +493,25 @@ function buildServer(): McpServer {
   );
 
   server.registerTool(
+    "concept_quotes",
+    {
+      description:
+        "Notable quotes attributed to or exemplifying a concept. Source is 'wikiquote' (scraped) or 'llm_verified' (LLM-suggested, then phrase-verified against Wikipedia/Wikiquote).",
+      inputSchema: { slug: z.string() },
+    },
+    async ({ slug }) => {
+      const c = corpus.bySlug.get(slug);
+      if (!c)
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "not found", slug }) }],
+          isError: true,
+        };
+      const quotes = corpus.quotes[String(c.id)] ?? [];
+      return asText({ slug, title: c.title, count: quotes.length, quotes });
+    },
+  );
+
+  server.registerTool(
     "list_facets",
     {
       description: "List all available form/domain/affect/source values with counts.",
