@@ -4,6 +4,7 @@ We don't exercise the SQLite path here — only the pure-numpy primitives
 (`kmeans`, `_kmeans_pp_init`, `top_terms`). The module's `main()` is covered
 indirectly because it composes those.
 """
+
 from __future__ import annotations
 
 import json
@@ -72,9 +73,7 @@ class TestKMeans:
         # in a single cluster.
         for start in (0, 20, 40):
             blob_labels = labels[start : start + 20]
-            assert len(set(blob_labels.tolist())) == 1, (
-                f"blob starting at {start} got mixed labels: {blob_labels}"
-            )
+            assert len(set(blob_labels.tolist())) == 1, f"blob starting at {start} got mixed labels: {blob_labels}"
         # The three blob-labels should themselves be distinct.
         assert len({labels[0], labels[20], labels[40]}) == 3
 
@@ -178,7 +177,7 @@ class TestOutputShape:
                     "topTerms": [],
                 }
             )
-        assignments = {str(cid): int(label) for cid, label in zip(ids, labels.tolist())}
+        assignments = {str(cid): int(label) for cid, label in zip(ids, labels.tolist(), strict=True)}
         payload = {"k": 3, "clusters": clusters, "assignments": assignments}
 
         out = tmp_path / "clusters.json"
@@ -219,11 +218,11 @@ class TestExportedClustersJson:
 
     def test_cluster_sizes_match_assignment_counts(self, payload):
         from collections import Counter
+
         counts = Counter(payload["assignments"].values())
         for c in payload["clusters"]:
             assert c["size"] == counts[c["id"]], (
-                f"cluster {c['id']}: declared size {c['size']} ≠ "
-                f"observed {counts[c['id']]}"
+                f"cluster {c['id']}: declared size {c['size']} ≠ observed {counts[c['id']]}"
             )
 
     def test_representatives_belong_to_their_cluster(self, payload):

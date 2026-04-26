@@ -1,4 +1,5 @@
 """SQLite connection + schema."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -46,7 +47,7 @@ CREATE TABLE IF NOT EXISTS edges (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     src_id    INTEGER NOT NULL REFERENCES concepts(id),
     dst_id    INTEGER NOT NULL REFERENCES concepts(id),
-    kind      TEXT NOT NULL,   -- prerequisite_of, specializes, contrasts_with, example_of, same_phenomenon_different_frame
+    kind      TEXT NOT NULL,   -- prerequisite_of, specializes, contrasts_with, example_of, etc.
     source    TEXT NOT NULL,   -- 'llm' | 'prereq-resolve' | 'semantic-dedup' | 'manual'
     weight    REAL DEFAULT 1.0,
     note      TEXT,

@@ -1,4 +1,5 @@
 """Quick stats on the pipeline DB."""
+
 from __future__ import annotations
 
 import json

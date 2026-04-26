@@ -5,6 +5,7 @@ H2 section, and extract <li> entries only from sections that aren't in the
 ``exclude`` set. This works reliably across Wikipedia's modern markup where
 headings are wrapped in ``<div class="mw-heading mw-heading2">``.
 """
+
 from __future__ import annotations
 
 import re
@@ -35,24 +36,26 @@ _TITLE_BLOCKLIST = (
 
 # Section headings we never want to scrape items from, keyed by normalized
 # heading text (lowercase, whitespace-collapsed, "[edit]" suffix stripped).
-_EXCLUDE_SECTIONS_DEFAULT = frozenset({
-    "see also",
-    "references",
-    "notes",
-    "further reading",
-    "external links",
-    "bibliography",
-    "sources",
-    "notable researchers",
-    "notable memory researchers",
-    "famous mnemonists",
-    "people",
-    "scholars",
-    "contributors",
-    "in popular culture",
-    "in fiction",
-    "media",
-})
+_EXCLUDE_SECTIONS_DEFAULT = frozenset(
+    {
+        "see also",
+        "references",
+        "notes",
+        "further reading",
+        "external links",
+        "bibliography",
+        "sources",
+        "notable researchers",
+        "notable memory researchers",
+        "famous mnemonists",
+        "people",
+        "scholars",
+        "contributors",
+        "in popular culture",
+        "in fiction",
+        "media",
+    }
+)
 
 
 def _is_bad_title(title: str) -> bool:
@@ -95,9 +98,7 @@ def _heading_info(node: Tag) -> tuple[int, str] | None:
     return level, text
 
 
-_NON_CONTENT_TABLE_CLASSES = frozenset(
-    {"ambox", "navbox", "infobox", "sidebar", "metadata", "plainlinks", "hatnote"}
-)
+_NON_CONTENT_TABLE_CLASSES = frozenset({"ambox", "navbox", "infobox", "sidebar", "metadata", "plainlinks", "hatnote"})
 
 
 def _is_content_table(t: Tag) -> bool:

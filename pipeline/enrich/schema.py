@@ -1,4 +1,5 @@
 """Pydantic schema for LLM enrichment output."""
+
 from __future__ import annotations
 
 from typing import Literal

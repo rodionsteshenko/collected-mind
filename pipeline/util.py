@@ -1,4 +1,5 @@
 """Small helpers: slugs, hashes, logging."""
+
 from __future__ import annotations
 
 import hashlib

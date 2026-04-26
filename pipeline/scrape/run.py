@@ -1,9 +1,9 @@
 """Main scraper entry point. Populates the concepts table from Tier 1 lists."""
+
 from __future__ import annotations
 
 import datetime as _dt
 import sys
-from datetime import timezone
 
 from tqdm import tqdm
 
@@ -15,7 +15,7 @@ from pipeline.util import slugify
 
 
 def _insert_manual_seeds(conn, source: ManualSource) -> int:
-    now = _dt.datetime.now(timezone.utc).isoformat()
+    now = _dt.datetime.now(_dt.UTC).isoformat()
     inserted = 0
     cur = conn.cursor()
     for title in source.titles:
@@ -42,7 +42,7 @@ def _insert_manual_seeds(conn, source: ManualSource) -> int:
 
 def _insert_seeds(conn, source: Source, titles: list[str]) -> int:
     """Insert rows for each title; skip ones that already exist for this source."""
-    now = _dt.datetime.now(timezone.utc).isoformat()
+    now = _dt.datetime.now(_dt.UTC).isoformat()
     inserted = 0
     cur = conn.cursor()
     for title in titles:
@@ -70,9 +70,7 @@ def _insert_seeds(conn, source: Source, titles: list[str]) -> int:
 def _enrich_extracts(conn) -> int:
     """Fetch intro extracts for any concepts that don't have one yet."""
     cur = conn.cursor()
-    rows = cur.execute(
-        "SELECT id, title FROM concepts WHERE wiki_extract IS NULL OR wiki_extract = ''"
-    ).fetchall()
+    rows = cur.execute("SELECT id, title FROM concepts WHERE wiki_extract IS NULL OR wiki_extract = ''").fetchall()
     if not rows:
         return 0
     by_title = {r["title"]: r["id"] for r in rows}

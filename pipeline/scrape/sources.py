@@ -6,6 +6,7 @@ list entries — we only extract <li> items inside that region so we skip nav,
 see-also, and references sections. Defaults to ``.mw-parser-output`` (whole
 article body), with post-filters in ``extract.py`` removing obvious non-entries.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

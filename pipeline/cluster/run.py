@@ -17,6 +17,7 @@ Output shape (``web/public/data/clusters.json``):
     "assignments": { "<conceptId>": clusterId, ... }
   }
 """
+
 from __future__ import annotations
 
 import argparse
@@ -33,20 +34,128 @@ from pipeline.db import connect
 OUT_PATH = Path(__file__).resolve().parents[2] / "web" / "public" / "data" / "clusters.json"
 
 STOPWORDS = {
-    "the", "a", "an", "of", "in", "on", "at", "to", "for", "and", "or", "but",
-    "is", "are", "was", "were", "be", "been", "being", "as", "by", "with",
-    "that", "this", "it", "its", "from", "into", "than", "then", "so", "if",
-    "not", "no", "do", "does", "did", "have", "has", "had", "can", "will",
-    "would", "could", "should", "may", "might", "we", "you", "i", "they",
-    "he", "she", "his", "her", "their", "our", "your", "my",
-    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
-    "ten", "more", "less", "most", "least", "such", "very", "much", "also",
-    "other", "another", "some", "any", "all", "each", "every", "many", "few",
-    "thing", "things", "way", "ways", "kind", "type", "form", "concept",
-    "term", "idea", "person", "people", "make", "makes", "made", "use",
-    "used", "using", "call", "called", "calls", "see", "seen", "say", "said",
-    "says", "find", "found", "give", "given", "gives", "set", "sets", "get",
-    "gets", "got",
+    "the",
+    "a",
+    "an",
+    "of",
+    "in",
+    "on",
+    "at",
+    "to",
+    "for",
+    "and",
+    "or",
+    "but",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "as",
+    "by",
+    "with",
+    "that",
+    "this",
+    "it",
+    "its",
+    "from",
+    "into",
+    "than",
+    "then",
+    "so",
+    "if",
+    "not",
+    "no",
+    "do",
+    "does",
+    "did",
+    "have",
+    "has",
+    "had",
+    "can",
+    "will",
+    "would",
+    "could",
+    "should",
+    "may",
+    "might",
+    "we",
+    "you",
+    "i",
+    "they",
+    "he",
+    "she",
+    "his",
+    "her",
+    "their",
+    "our",
+    "your",
+    "my",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "more",
+    "less",
+    "most",
+    "least",
+    "such",
+    "very",
+    "much",
+    "also",
+    "other",
+    "another",
+    "some",
+    "any",
+    "all",
+    "each",
+    "every",
+    "many",
+    "few",
+    "thing",
+    "things",
+    "way",
+    "ways",
+    "kind",
+    "type",
+    "form",
+    "concept",
+    "term",
+    "idea",
+    "person",
+    "people",
+    "make",
+    "makes",
+    "made",
+    "use",
+    "used",
+    "using",
+    "call",
+    "called",
+    "calls",
+    "see",
+    "seen",
+    "say",
+    "said",
+    "says",
+    "find",
+    "found",
+    "give",
+    "given",
+    "gives",
+    "set",
+    "sets",
+    "get",
+    "gets",
+    "got",
 }
 
 WORD_RE = re.compile(r"[a-zA-Z][a-zA-Z'-]+")
@@ -58,9 +167,7 @@ def _load_embeddings(conn):
         "FROM concepts WHERE embedding IS NOT NULL AND dropped = 0 ORDER BY id"
     ).fetchall()
     ids = np.array([r["id"] for r in rows], dtype=np.int64)
-    mat = np.stack(
-        [np.frombuffer(r["embedding"], dtype=np.float32) for r in rows]
-    )
+    mat = np.stack([np.frombuffer(r["embedding"], dtype=np.float32) for r in rows])
     text_by_id = {r["id"]: f"{r['title'] or ''} {r['one_liner'] or ''}".lower() for r in rows}
     return ids, mat, text_by_id
 
@@ -143,12 +250,9 @@ def top_terms(text_by_id: dict[int, str], member_ids: list[int], all_ids: list[i
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--k", type=int, default=None,
-                    help="number of clusters (default: round(sqrt(N/2)))")
-    ap.add_argument("--reps", type=int, default=6,
-                    help="representatives per cluster")
-    ap.add_argument("--terms", type=int, default=6,
-                    help="top distinctive terms per cluster")
+    ap.add_argument("--k", type=int, default=None, help="number of clusters (default: round(sqrt(N/2)))")
+    ap.add_argument("--reps", type=int, default=6, help="representatives per cluster")
+    ap.add_argument("--terms", type=int, default=6, help="top distinctive terms per cluster")
     ap.add_argument("--iters", type=int, default=30)
     ap.add_argument("--seed", type=int, default=7)
     args = ap.parse_args(argv)
@@ -195,10 +299,12 @@ def main(argv: list[str] | None = None) -> int:
             separators=(",", ":"),
         )
     )
-    print(f"wrote {OUT_PATH}  ({len(clusters)} clusters, sizes "
-          f"min={min(c['size'] for c in clusters)} "
-          f"max={max(c['size'] for c in clusters)} "
-          f"mean={sum(c['size'] for c in clusters) / len(clusters):.1f})")
+    print(
+        f"wrote {OUT_PATH}  ({len(clusters)} clusters, sizes "
+        f"min={min(c['size'] for c in clusters)} "
+        f"max={max(c['size'] for c in clusters)} "
+        f"mean={sum(c['size'] for c in clusters) / len(clusters):.1f})"
+    )
     conn.close()
     return 0
 

@@ -1,4 +1,5 @@
 """Enrichment pipeline. One LLM call per concept, result cached by content hash."""
+
 from __future__ import annotations
 
 import argparse
@@ -6,7 +7,6 @@ import datetime as _dt
 import json
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import timezone
 
 from pydantic import ValidationError
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -22,7 +22,7 @@ SURPRISE_DROP_THRESHOLD = 4  # keep anything >= this
 
 
 def _now() -> str:
-    return _dt.datetime.now(timezone.utc).isoformat()
+    return _dt.datetime.now(_dt.UTC).isoformat()
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))

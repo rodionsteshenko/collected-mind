@@ -10,6 +10,7 @@ Three kinds of edges are emitted into the ``edges`` table:
    ``prerequisites_raw`` list by nearest-neighbor lookup against embeddings,
    filtered by a similarity floor.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -67,9 +68,7 @@ def build_semantic_edges(conn):
                 s = float(sims[i, j])
                 if s <= 0:
                     continue
-                _insert_edge(
-                    conn, int(sid), int(ids[j]), "semantic_near", "embedding", s
-                )
+                _insert_edge(conn, int(sid), int(ids[j]), "semantic_near", "embedding", s)
                 if s >= DEDUP_THRESHOLD and i < j:
                     dedup_pairs.append((int(sid), int(ids[j]), s))
             bar.update(1)
@@ -170,9 +169,7 @@ def main(argv: list[str] | None = None) -> int:
 
     conn = connect()
     # Wipe auto-generated edges to keep reruns idempotent.
-    conn.execute(
-        "DELETE FROM edges WHERE source IN ('embedding', 'prereq-resolve')"
-    )
+    conn.execute("DELETE FROM edges WHERE source IN ('embedding', 'prereq-resolve')")
     conn.commit()
 
     build_semantic_edges(conn)

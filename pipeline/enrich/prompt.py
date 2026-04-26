@@ -1,4 +1,5 @@
 """Enrichment prompt. Produces a tight 'aha' framing per concept."""
+
 from __future__ import annotations
 
 SYSTEM = """You are a curator for a personal knowledge map of surprising, mind-expanding ideas — cognitive biases, fallacies, paradoxes, thought experiments, named effects, and related concepts.

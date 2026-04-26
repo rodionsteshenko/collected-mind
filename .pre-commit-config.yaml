@@ -1,0 +1,52 @@
+# See https://pre-commit.com/ — install with `.venv/bin/pre-commit install`.
+# Run all hooks across the repo with `.venv/bin/pre-commit run --all-files`.
+
+repos:
+  # General hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.bin$'
+      - id: end-of-file-fixer
+        exclude: '\.bin$|web/public/data/.*\.json$'
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=20000']
+
+  # Python: ruff (lint + format)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # Tests + type-checks (run only when relevant files change)
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: .venv/bin/python -m pytest
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: tsc
+        name: tsc (type-check)
+        entry: bash -c 'cd web && npx tsc --noEmit'
+        language: system
+        types_or: [ts, tsx]
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: vitest
+        name: vitest
+        entry: bash -c 'cd web && npm test'
+        language: system
+        types_or: [ts, tsx]
+        pass_filenames: false
+        stages: [pre-commit]

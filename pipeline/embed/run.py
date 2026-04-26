@@ -1,10 +1,10 @@
 """Embed every kept concept with OpenAI's text-embedding-3-small."""
+
 from __future__ import annotations
 
 import argparse
 import datetime as _dt
 import sys
-from datetime import timezone
 
 import numpy as np
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -60,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"embedding {len(rows)} concepts with {EMBED_MODEL}")
     client = openai_client()
-    now = _dt.datetime.now(timezone.utc).isoformat()
+    now = _dt.datetime.now(_dt.UTC).isoformat()
 
     with tqdm(total=len(rows), desc="embed", unit="c") as bar:
         for i in range(0, len(rows), BATCH):

@@ -8,6 +8,7 @@ Writes into ``web/public/data/``:
 - ``tags.json``      — pre-aggregated facet counts for the browse UI
 - ``search.json``    — tiny document shape for client-side MiniSearch index
 """
+
 from __future__ import annotations
 
 import json
@@ -73,9 +74,7 @@ def export() -> None:
             model = r["embedding_model"]
 
     # --- concepts.json
-    (OUT_DIR / "concepts.json").write_text(
-        json.dumps(concepts, separators=(",", ":"), ensure_ascii=False)
-    )
+    (OUT_DIR / "concepts.json").write_text(json.dumps(concepts, separators=(",", ":"), ensure_ascii=False))
 
     # --- embeddings
     if emb_vecs:
@@ -90,25 +89,17 @@ def export() -> None:
     else:
         # still emit empty files so the frontend fetch succeeds
         (OUT_DIR / "embeddings.bin").write_bytes(b"")
-        (OUT_DIR / "embeddings_meta.json").write_text(
-            json.dumps({"ids": [], "dim": 0, "model": None})
-        )
+        (OUT_DIR / "embeddings_meta.json").write_text(json.dumps({"ids": [], "dim": 0, "model": None}))
 
     # --- edges.json, grouped by src for quick lookup, kind → [{dstId, weight}]
-    edges = conn.execute(
-        "SELECT src_id, dst_id, kind, weight FROM edges ORDER BY src_id, kind, weight DESC"
-    ).fetchall()
+    edges = conn.execute("SELECT src_id, dst_id, kind, weight FROM edges ORDER BY src_id, kind, weight DESC").fetchall()
     kept_ids = {c["id"] for c in concepts}
     out_edges: dict[int, dict[str, list[dict]]] = defaultdict(lambda: defaultdict(list))
     for e in edges:
         if e["src_id"] not in kept_ids or e["dst_id"] not in kept_ids:
             continue
-        out_edges[e["src_id"]][e["kind"]].append(
-            {"id": e["dst_id"], "w": round(float(e["weight"]), 4)}
-        )
-    (OUT_DIR / "edges.json").write_text(
-        json.dumps(out_edges, separators=(",", ":"))
-    )
+        out_edges[e["src_id"]][e["kind"]].append({"id": e["dst_id"], "w": round(float(e["weight"]), 4)})
+    (OUT_DIR / "edges.json").write_text(json.dumps(out_edges, separators=(",", ":")))
 
     # --- tags.json: facet counts
     domain_counts = Counter()
@@ -149,9 +140,7 @@ def export() -> None:
         }
         for c in concepts
     ]
-    (OUT_DIR / "search.json").write_text(
-        json.dumps(search_docs, separators=(",", ":"), ensure_ascii=False)
-    )
+    (OUT_DIR / "search.json").write_text(json.dumps(search_docs, separators=(",", ":"), ensure_ascii=False))
 
     print(
         f"exported → {OUT_DIR}\n"

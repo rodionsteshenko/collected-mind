@@ -3,6 +3,7 @@
 All calls go through a single ``requests.Session`` with a polite User-Agent
 and small sleep between requests to stay under WMF guidelines.
 """
+
 from __future__ import annotations
 
 import time

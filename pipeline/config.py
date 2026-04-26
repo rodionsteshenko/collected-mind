@@ -1,4 +1,5 @@
 """Shared config. Loads .env, exposes model names and OpenAI client."""
+
 from __future__ import annotations
 
 import os
