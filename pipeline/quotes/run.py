@@ -72,7 +72,13 @@ def _try_wikiquote(conn, slug: str, title: str) -> list[StoredQuote]:
     if cached is not None:
         items = cached
     else:
-        raw = wq.fetch_quotes(title, max_quotes=MAX_PER_CONCEPT * 2)
+        try:
+            raw = wq.fetch_quotes(title, max_quotes=MAX_PER_CONCEPT * 2)
+        except Exception:  # noqa: BLE001
+            # Network blip / 5xx / odd page — treat as "no quotes" so the
+            # pipeline keeps moving. Don't poison the cache so we'll retry
+            # next run.
+            return []
         items = [asdict(q) for q in raw]
         _cache_put(conn, cache_key, items)
     out: list[StoredQuote] = []
