@@ -1,4 +1,4 @@
-.PHONY: install scrape enrich embed edges cluster export web dev clean
+.PHONY: install scrape enrich embed edges cluster export web dev clean test test-py test-web
 
 PY := .venv/bin/python
 
@@ -37,3 +37,11 @@ clean:
 
 stats:
 	$(PY) -m pipeline.stats
+
+test-py:
+	$(PY) -m pytest
+
+test-web:
+	cd web && npm test
+
+test: test-py test-web

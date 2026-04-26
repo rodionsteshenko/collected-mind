@@ -177,7 +177,8 @@ export function analogy(
 type AdjEntry = { kinds: Set<EdgeKind>; w: number };
 type Adj = Map<number, Map<number, AdjEntry>>;
 let adjCache: Adj | null = null;
-let adjCacheKey: object | null = null;
+let adjCacheKinds: string | null = null;
+let adjCacheEdges: unknown = null;
 
 function buildAdj(kinds: Set<EdgeKind>): Adj {
   const adj: Adj = new Map();
@@ -210,12 +211,15 @@ function buildAdj(kinds: Set<EdgeKind>): Adj {
 
 function getAdj(kinds: EdgeKind[]): Adj {
   const sorted = [...kinds].sort().join(",");
-  const cacheKey = { sorted, edges: corpus.edges };
-  if (adjCache && adjCacheKey && (adjCacheKey as { sorted: string }).sorted === sorted) {
+  // Invalidate when either the kinds filter or the edges object identity changes.
+  // The latter matters in tests (corpus is reseeded) and could matter at runtime
+  // if the corpus is ever reloaded without a process restart.
+  if (adjCache && adjCacheKinds === sorted && adjCacheEdges === corpus.edges) {
     return adjCache;
   }
   adjCache = buildAdj(new Set(kinds));
-  adjCacheKey = cacheKey;
+  adjCacheKinds = sorted;
+  adjCacheEdges = corpus.edges;
   return adjCache;
 }
 
